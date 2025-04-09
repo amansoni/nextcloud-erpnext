@@ -1,0 +1,68 @@
+# /opt/docker-stack/traefik/traefik.yml
+# Traefik Static Configuration (No major changes needed for basic multi-tenancy)
+
+global:
+  checkNewVersion: true
+  # sendAnonymousUsage: false
+
+entryPoints:
+  http:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: https
+          scheme: https
+  https:
+    address: ":443"
+    http:
+      tls:
+        certResolver: letsencrypt
+        # Optional: Define domains for wildcard certs if needed, requires DNS challenge
+        # domains:
+        #   - main: "*.${TENANT_BASE_DOMAIN}"
+        #   - sans: "${TENANT_BASE_DOMAIN}"
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: proxy # Ensure Traefik uses the correct network
+  # Optional: File provider for manual definitions
+  # file:
+  #   directory: /etc/traefik/dynamic_conf
+  #   watch: true
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: ${ACME_EMAIL} # Use variable from .env
+      storage: "/etc/traefik/acme.json"
+      # Use HTTP challenge (simpler for non-wildcard certs)
+      httpChallenge:
+        entryPoint: http
+      # --- OR ---
+      # Use DNS challenge for wildcard certificates (more complex setup)
+      # Requires configuring credentials for your DNS provider (Cloudflare, Route53, etc.)
+      # See Traefik documentation for DNS challenge providers
+      # dnsChallenge:
+      #   provider: cloudflare # Example provider
+      #   # delayBeforeCheck: 0
+      #   # resolvers:
+      #   #   - "1.1.1.1:53"
+      #   #   - "8.8.8.8:53"
+      #   # Credentials loaded from environment variables (e.g., CF_API_EMAIL, CF_API_KEY)
+
+log:
+  level: INFO
+  filePath: "/var/log/traefik/traefik.log"
+  format: json
+
+accessLog:
+  filePath: "/var/log/traefik/access.log"
+  format: json
+
+# Optional: API and Dashboard (ensure secured)
+# api:
+#   dashboard: true
+

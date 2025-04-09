@@ -1,0 +1,20 @@
+# Ignore the actual environment file containing secrets
+.env
+
+# Ignore Traefik's ACME certificates file
+traefik/acme.json
+
+# Ignore Docker Compose runtime overrides (if used)
+docker-compose.override.yml
+
+# Ignore local data volumes if mapped directly (though named volumes are better)
+# data/
+
+# Ignore common OS files
+.DS_Store
+Thumbs.db
+
+# Ignore IDE/editor specific files
+.vscode/
+.idea/
+*.swp

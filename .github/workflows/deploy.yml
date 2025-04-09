@@ -1,0 +1,68 @@
+# .github/workflows/deploy.yml
+name: Deploy Stack to Ubuntu Server
+
+on:
+  # Trigger the workflow on push events to the main branch
+  push:
+    branches:
+      - main # Adjust branch name if needed (e.g., production, deploy)
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Server
+    runs-on: ubuntu-latest # Use GitHub's hosted runners
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4 # Checks out your repository code
+
+      - name: Setup SSH connection
+        # Uses a popular action to configure SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          # Use the SSH private key stored as a GitHub secret
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add known hosts
+        # Adds the server's host key to known_hosts to avoid prompts
+        # IMPORTANT: Replace 'your_server_fingerprint' with the actual fingerprint
+        # You can get it by running `ssh-keyscan your_server_ip_or_hostname`
+        # Or connect once manually from a trusted machine first.
+        # Alternatively, disable strict host key checking (less secure): ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy to Server via SSH
+        # Executes commands remotely on your Ubuntu server
+        # Assumes the .env file is already present and configured on the server
+        # Assumes docker and docker-compose are installed on the server
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+            # Navigate to the working directory (defined as a GitHub secret)
+            cd ${{ secrets.WORK_DIR }}
+
+            # Pull the latest changes from the repository
+            echo ">>> Pulling latest changes..."
+            git pull origin main # Or the branch you pushed to
+
+            # Ensure correct permissions on sensitive files (just in case)
+            echo ">>> Setting permissions..."
+            sudo chmod 600 .env
+            sudo chmod 600 traefik/acme.json || echo "acme.json not found, will be created by Traefik."
+
+            # Start/update the Docker Compose stack
+            # Use --remove-orphans to clean up unused service containers
+            echo ">>> Running Docker Compose..."
+            docker compose up -d --remove-orphans
+
+            # Optional: Prune unused Docker images/volumes to save space
+            # echo ">>> Pruning Docker system..."
+            # docker system prune -af
+
+            echo ">>> Deployment finished on server."
+          EOF
+

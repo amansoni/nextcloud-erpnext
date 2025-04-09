@@ -298,7 +298,12 @@ services:
     volumes:
       - erpnext-sites:/home/frappe/frappe-bench/sites
       - erpnext-logs:/home/frappe/frappe-bench/logs
-    environment: { DB_HOST: erpnext-db, DB_PORT: 3306, REDIS_QUEUE: redis://erpnext-redis-queue:6379, REDIS_CACHE: redis://erpnext-redis-cache:6379, MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD} }
+    environment:
+      DB_HOST: erpnext-db
+      DB_PORT: 3306
+      REDIS_QUEUE: redis://erpnext-redis-queue:6379
+      REDIS_CACHE: redis://erpnext-redis-cache:6379
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     command: ["bench", "worker", "--queue", "default"]
     depends_on: [erpnext-python]
 
@@ -310,7 +315,12 @@ services:
     volumes:
       - erpnext-sites:/home/frappe/frappe-bench/sites
       - erpnext-logs:/home/frappe/frappe-bench/logs
-    environment: { DB_HOST: erpnext-db, DB_PORT: 3306, REDIS_QUEUE: redis://erpnext-redis-queue:6379, REDIS_CACHE: redis://erpnext-redis-cache:6379, MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD} }
+    environment:
+      DB_HOST: erpnext-db
+      DB_PORT: 3306
+      REDIS_QUEUE: redis://erpnext-redis-queue:6379
+      REDIS_CACHE: redis://erpnext-redis-cache:6379
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     command: ["bench", "worker", "--queue", "short"]
     depends_on: [erpnext-python]
 
@@ -322,7 +332,12 @@ services:
     volumes:
       - erpnext-sites:/home/frappe/frappe-bench/sites
       - erpnext-logs:/home/frappe/frappe-bench/logs
-    environment: { DB_HOST: erpnext-db, DB_PORT: 3306, REDIS_QUEUE: redis://erpnext-redis-queue:6379, REDIS_CACHE: redis://erpnext-redis-cache:6379, MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD} }
+    environment:
+      DB_HOST: erpnext-db
+      DB_PORT: 3306
+      REDIS_QUEUE: redis://erpnext-redis-queue:6379
+      REDIS_CACHE: redis://erpnext-redis-cache:6379
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     command: ["bench", "worker", "--queue", "long"]
     depends_on: [erpnext-python]
 

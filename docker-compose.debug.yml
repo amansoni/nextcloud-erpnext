@@ -1,6 +1,0 @@
-services:
-  codespacesblank:
-    image: codespacesblank
-    build:
-      context: .
-      dockerfile: ./Dockerfile

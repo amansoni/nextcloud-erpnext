@@ -42,6 +42,9 @@ volumes:
   mailu-data:
   mailu-redis: # Mailu often uses its own Redis instance/config
   mailu-letsencrypt:
+  # AI Tools
+  ollama-data:
+  open-webui-data:
 
 services:
 
@@ -677,3 +680,64 @@ services:
       - mailu-imap
       - mailu-smtp
 
+  #--------------------------------------------------
+  # Ollama (AI Model Server)
+  #--------------------------------------------------
+  ollama:
+    image: ollama/ollama:latest # Use official image
+    container_name: ollama
+    restart: unless-stopped
+    networks:
+      - backend # Internal access only needed by Open WebUI
+    volumes:
+      - ollama-data:/root/.ollama # Persist downloaded models
+    # --- GPU Acceleration (Optional - Requires NVIDIA Container Toolkit on Host) ---
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1 # Or 'all'
+    #           capabilities: [gpu]
+    # --------------------------------------------------------------------------
+    # Expose port internally if needed, but not strictly necessary if only accessed by OpenWebUI
+    # ports:
+    #   - "127.0.0.1:11434:11434"
+    environment:
+      # Ensure Ollama listens on all interfaces within the container
+      OLLAMA_HOST: '0.0.0.0'
+      # Optional: Set models to keep loaded in memory
+      # OLLAMA_KEEP_ALIVE: '1h'
+      TZ: ${TZ}
+
+  #--------------------------------------------------
+  # Open WebUI (Frontend for Ollama)
+  #--------------------------------------------------
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main # Use official image
+    container_name: open-webui
+    restart: unless-stopped
+    networks:
+      - proxy # Exposed via Traefik
+      - backend # Needs to connect to Ollama
+    volumes:
+      - open-webui-data:/app/backend/data # Persist config and data
+    environment:
+      # Point WebUI to the Ollama service within the Docker network
+      OLLAMA_BASE_URL: 'http://ollama:11434'
+      # Optional: Enable/disable sign-up
+      # WEBUI_SIGNUP_ENABLED: 'false'
+      TZ: ${TZ}
+    depends_on:
+      - ollama # Ensure Ollama starts before the WebUI
+    labels:
+      - "traefik.enable=true"
+      # HTTP Router definition
+      - "traefik.http.routers.openwebui.rule=Host(`${OPENWEBUI_DOMAIN}`)"
+      - "traefik.http.routers.openwebui.entrypoints=https"
+      - "traefik.http.routers.openwebui.tls=true"
+      - "traefik.http.routers.openwebui.tls.certresolver=letsencrypt"
+      # Service definition: Point Traefik to port 8080 of this container
+      - "traefik.http.services.openwebui.loadbalancer.server.port=8080"
+      # Apply global security headers middleware
+      - "traefik.http.routers.openwebui.middlewares=secHeaders@docker"

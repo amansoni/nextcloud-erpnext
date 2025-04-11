@@ -10,18 +10,19 @@ This repository contains the configuration files to deploy Nextcloud, ERPNext, O
 * DNS records for your chosen subdomains pointing to your server's IP.
 * Ports 80 and 443 open on the server firewall.
 * `git` installed on the server.
+* [Add deploy key if needed](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys#deploy-keys)
 
 ## Setup on Server
 
 1.  **Clone the Repository:**
     ```bash
-    git clone <your-repo-url> /opt/docker-stack
+    git clone git@github.com:amansoni/nextcloud-erpnext.git /opt/docker-stack # or your repo url
     cd /opt/docker-stack
     ```
 
 2.  **Create `.env` File:** Copy the example file and **edit it securely** to add your actual domains, passwords, and secrets:
     ```bash
-    cp .env.example .env
+    cp .env.sample .env
     nano .env # Or your preferred editor
     # --- FILL IN ALL REQUIRED VALUES ---
     sudo chmod 600 .env # Restrict permissions

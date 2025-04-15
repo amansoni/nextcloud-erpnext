@@ -41,10 +41,10 @@ volumes:
 services:
 
   #--------------------------------------------------
-  # Traefik (Reverse Proxy) - No changes from previous
+  # Traefik (Reverse Proxy)
   #--------------------------------------------------
   traefik:
-    image: traefik:v2.11
+    image: traefik:v3.1
     container_name: traefik
     restart: unless-stopped
     security_opt:
@@ -54,6 +54,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "8080:8080" # Traefik dashboard
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
@@ -170,7 +171,7 @@ services:
       - redis-data:/data
 
   erpnext-python:
-    image: frappe/erpnext:v15-py
+    image: amansoni75/erpnext-health:15.0.0
     container_name: erpnext-python
     restart: unless-stopped
     networks:
@@ -192,10 +193,12 @@ services:
       - erpnext-redis-queue
       - erpnext-redis-cache
 
-  erpnext-nginx:
-    image: frappe/erpnext:v15-nginx
-    container_name: erpnext-nginx
+  erpnext-frontend:
+    image: amansoni75/erpnext-health:15.0.0
+    container_name: erpnext-frontend
     restart: unless-stopped
+    command:
+      - nginx-entrypoint.sh
     networks:
       - proxy
       - backend
@@ -220,12 +223,12 @@ services:
       - "traefik.http.routers.erpnext-tenant1.entrypoints=https"
       - "traefik.http.routers.erpnext-tenant1.tls=true"
       - "traefik.http.routers.erpnext-tenant1.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.erpnext-tenant1.service=erpnext-nginx-svc"
+      - "traefik.http.routers.erpnext-tenant1.service=erpnext-frontend-svc"
       - "traefik.http.routers.erpnext-tenant1.middlewares=secHeaders@docker"
-      - "traefik.http.services.erpnext-nginx-svc.loadbalancer.server.port=80"
+      - "traefik.http.services.erpnext-frontend-svc.loadbalancer.server.port=80"
 
   erpnext-scheduler:
-    image: frappe/erpnext:v15-py
+    image: amansoni75/erpnext-health:15.0.0
     container_name: erpnext-scheduler
     restart: unless-stopped
     networks: [backend]
@@ -242,7 +245,7 @@ services:
     depends_on: [erpnext-python]
 
   erpnext-worker-default:
-    image: frappe/erpnext:v15-py
+    image: amansoni75/erpnext-health:15.0.0
     container_name: erpnext-worker-default
     restart: unless-stopped
     networks: [backend]
@@ -259,7 +262,7 @@ services:
     depends_on: [erpnext-python]
 
   erpnext-worker-short:
-    image: frappe/erpnext:v15-py
+    image: amansoni75/erpnext-health:15.0.0
     container_name: erpnext-worker-short
     restart: unless-stopped
     networks: [backend]
@@ -276,7 +279,7 @@ services:
     depends_on: [erpnext-python]
 
   erpnext-worker-long:
-    image: frappe/erpnext:v15-py
+    image: amansoni75/erpnext-health:15.0.0
     container_name: erpnext-worker-long
     restart: unless-stopped
     networks: [backend]
@@ -293,7 +296,7 @@ services:
     depends_on: [erpnext-python]
 
   erpnext-socketio:
-    image: frappe/frappe-socketio:v15
+    image: amansoni75/erpnext-health:15.0.0
     container_name: erpnext-socketio
     restart: unless-stopped
     networks: [backend]

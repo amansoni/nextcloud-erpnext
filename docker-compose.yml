@@ -9,10 +9,6 @@ networks:
   backend:
     name: backend
     driver: bridge
-  mailu-internal: # Network specific to Mailu internal components
-    name: mailu-internal
-    driver: bridge
-    internal: true # Keep internal components isolated
 
 volumes:
   # Traefik
@@ -38,10 +34,6 @@ volumes:
   onlyoffice-logs:
   # n8n (Shared instance)
   n8n-data:
-  # Mailu
-  mailu-data:
-  mailu-redis: # Mailu often uses its own Redis instance/config
-  mailu-letsencrypt:
   # AI Tools
   ollama-data:
   open-webui-data:
@@ -62,15 +54,6 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      # --- Mailu Ports (Expose directly - Simpler) ---
-      # Alternative: Use Traefik TCP Routers (more complex)
-      - "25:25"    # SMTP
-      - "587:587"  # SMTP Submission (TLS)
-      - "465:465"  # SMTPS (Legacy)
-      - "143:143"  # IMAP
-      - "993:993"  # IMAPS
-      - "110:110"  # POP3 (Optional)
-      - "995:995"  # POP3S (Optional)
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
@@ -81,21 +64,13 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
       - ACME_EMAIL=${ACME_EMAIL}
-      # Pass DNS provider credentials if using DNS challenge for ACME
-      # - CF_API_EMAIL=${CF_API_EMAIL}
-      # - CF_API_KEY=${CF_API_KEY}
     labels:
       - "traefik.enable=true"
-      # --- Router for Traefik Dashboard (Optional) ---
       - "traefik.http.routers.traefik-dashboard.rule=Host(`${TRAEFIK_DOMAIN}`)"
       - "traefik.http.routers.traefik-dashboard.service=api@internal"
       - "traefik.http.routers.traefik-dashboard.entrypoints=https"
       - "traefik.http.routers.traefik-dashboard.tls=true"
       - "traefik.http.routers.traefik-dashboard.tls.certresolver=letsencrypt"
-      # --- Optional: Middleware for Dashboard Basic Auth ---
-      # - "traefik.http.middlewares.traefik-auth.basicauth.users=${TRAEFIK_AUTH_USER}:${TRAEFIK_AUTH_PASS_HASHED}"
-      # - "traefik.http.routers.traefik-dashboard.middlewares=traefik-auth@docker"
-      # --- Global Security Headers Middleware ---
       - "traefik.http.middlewares.secHeaders.headers.browserXssFilter=true"
       - "traefik.http.middlewares.secHeaders.headers.contentTypeNosniff=true"
       - "traefik.http.middlewares.secHeaders.headers.frameDeny=true"
@@ -123,52 +98,43 @@ services:
   # Keycloak (SSO Identity Provider)
   #--------------------------------------------------
   keycloak:
-    image: quay.io/keycloak/keycloak:latest # Or pin to specific version (e.g., 24.x)
+    image: quay.io/keycloak/keycloak:latest
     container_name: keycloak
     restart: unless-stopped
     networks:
       - proxy
       - backend
-    volumes: [] # Corrected to an empty list
+    volumes: [] 
     environment:
-      # Initial admin credentials
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
-      # Database configuration
       KC_DB: postgres
       KC_DB_URL_HOST: ${KEYCLOAK_DB_HOST}
       KC_DB_URL_DATABASE: ${KEYCLOAK_DB_DATABASE}
       KC_DB_USERNAME: ${KEYCLOAK_DB_USER}
       KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
       KC_DB_SCHEMA: public
-      # Proxy settings for when behind Traefik
-      KC_PROXY: edge # Keycloak handles TLS termination itself, Traefik passes through
-      KC_HOSTNAME: ${KEYCLOAK_DOMAIN} # Public facing hostname
-      KC_HTTP_RELATIVE_PATH: /auth # Default, change if needed
-      # Optional: Disable HTTP if only HTTPS is used via Traefik
-      # KC_HTTP_ENABLED: false
+      KC_PROXY: edge
+      KC_HOSTNAME: ${KEYCLOAK_DOMAIN}
+      KC_HTTP_RELATIVE_PATH: /auth
       TZ: ${TZ}
     depends_on:
       - keycloak-db
-    # Command to start Keycloak (adjust based on version if needed)
-    command: ["start-dev"] # Use 'start' for production (requires build step or different config)
+    command: ["start-dev"]
     labels:
       - "traefik.enable=true"
-      # Router for Keycloak UI/API
       - "traefik.http.routers.keycloak.rule=Host(`${KEYCLOAK_DOMAIN}`)"
       - "traefik.http.routers.keycloak.entrypoints=https"
       - "traefik.http.routers.keycloak.tls=true"
       - "traefik.http.routers.keycloak.tls.certresolver=letsencrypt"
-      # Service definition: Point Traefik to Keycloak's default port (8080)
       - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
-      # Apply security headers
       - "traefik.http.routers.keycloak.middlewares=secHeaders@docker"
 
   #--------------------------------------------------
   # ERPNext (Base Instance - Handles Multiple Sites)
   # Database and Redis are shared resources here
   #--------------------------------------------------
-  erpnext-db: # Shared MariaDB instance
+  erpnext-db:
     image: mariadb:10.6
     container_name: erpnext-db
     restart: unless-stopped
@@ -178,16 +144,14 @@ services:
       - erpnext-db-data:/var/lib/mysql
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      # User/DB defined here are primarily for root/initial setup.
-      # Tenant DBs managed by `bench new-site`.
-      MYSQL_USER: erp_base_user # Generic user if needed
-      MYSQL_PASSWORD: erp_base_password # Generic password
-      MYSQL_DATABASE: erp_base_db # Base DB if needed
+      MYSQL_USER: erp_base_user
+      MYSQL_PASSWORD: erp_base_password
+      MYSQL_DATABASE: erp_base_db
     command:
       - '--character-set-server=utf8mb4'
       - '--collation-server=utf8mb4_unicode_ci'
 
-  erpnext-redis-queue: # Shared Redis instance
+  erpnext-redis-queue:
     image: redis:6.2-alpine
     container_name: erpnext-redis-queue
     restart: unless-stopped
@@ -195,10 +159,8 @@ services:
       - backend
     volumes:
       - redis-data:/data
-    # Optional: Enable Redis password authentication
-    # command: redis-server --requirepass ${REDIS_PASSWORD}
 
-  erpnext-redis-cache: # Shared Redis instance
+  erpnext-redis-cache:
     image: redis:6.2-alpine
     container_name: erpnext-redis-cache
     restart: unless-stopped
@@ -206,17 +168,15 @@ services:
       - backend
     volumes:
       - redis-data:/data
-    # Optional: Enable Redis password authentication
-    # command: redis-server --requirepass ${REDIS_PASSWORD}
 
-  erpnext-python: # Shared Python service
+  erpnext-python:
     image: frappe/erpnext:v15-py
     container_name: erpnext-python
     restart: unless-stopped
     networks:
       - backend
     volumes:
-      - erpnext-sites:/home/frappe/frappe-bench/sites # Contains all tenant sites
+      - erpnext-sites:/home/frappe/frappe-bench/sites
       - erpnext-assets:/home/frappe/frappe-bench/sites/assets
       - erpnext-logs:/home/frappe/frappe-bench/logs
     environment:
@@ -226,16 +186,13 @@ services:
       REDIS_CACHE: redis://erpnext-redis-cache:6379
       SOCKETIO_PORT: 9000
       AUTO_MIGRATE: "1"
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD} # Needed for site creation/migration
-      # FRAPPE_SITE_NAME_HEADER: # Not needed here, Nginx handles site resolution
-      # Optional: Pass Redis password if enabled
-      # REDIS_PASSWORD: ${REDIS_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     depends_on:
       - erpnext-db
       - erpnext-redis-queue
       - erpnext-redis-cache
 
-  erpnext-nginx: # Shared Nginx service - Resolves site based on Host header
+  erpnext-nginx:
     image: frappe/erpnext:v15-nginx
     container_name: erpnext-nginx
     restart: unless-stopped
@@ -249,7 +206,6 @@ services:
     environment:
       BACKEND: erpnext-python:8000
       SOCKETIO: erpnext-socketio:9000
-      # FRAPPE_SITE_NAME_HEADER: # Not needed, Nginx resolves site from host
       UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
       UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
       UPSTREAM_REAL_IP_RECURSIVE: "off"
@@ -260,18 +216,14 @@ services:
       - erpnext-socketio
     labels:
       - "traefik.enable=true"
-      # --- Router for Tenant 1 ERP --- # --- Tenant Duplication ---
-      # Duplicate this router block for each tenant, changing the name and Host rule
       - "traefik.http.routers.erpnext-tenant1.rule=Host(`${TENANT1_ERP_DOMAIN}`)"
       - "traefik.http.routers.erpnext-tenant1.entrypoints=https"
       - "traefik.http.routers.erpnext-tenant1.tls=true"
       - "traefik.http.routers.erpnext-tenant1.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.erpnext-tenant1.service=erpnext-nginx-svc" # Point to the shared Nginx service
+      - "traefik.http.routers.erpnext-tenant1.service=erpnext-nginx-svc"
       - "traefik.http.routers.erpnext-tenant1.middlewares=secHeaders@docker"
-      # --- Shared Service Definition for ERPNext Nginx ---
       - "traefik.http.services.erpnext-nginx-svc.loadbalancer.server.port=80"
 
-  # Shared ERPNext Workers & Scheduler (same as before)
   erpnext-scheduler:
     image: frappe/erpnext:v15-py
     container_name: erpnext-scheduler
@@ -340,7 +292,7 @@ services:
     command: ["bench", "worker", "--queue", "long"]
     depends_on: [erpnext-python]
 
-  erpnext-socketio: # Shared SocketIO service
+  erpnext-socketio:
     image: frappe/frappe-socketio:v15
     container_name: erpnext-socketio
     restart: unless-stopped
@@ -350,14 +302,10 @@ services:
     environment:
       REDIS_HOST: erpnext-redis-queue
       REDIS_PORT: 6379
-      # Optional: Pass Redis password if enabled
-      # REDIS_PASSWORD: ${REDIS_PASSWORD}
     depends_on: [erpnext-redis-queue]
 
   #--------------------------------------------------
   # Nextcloud Instance for Tenant 1 # --- Tenant Duplication ---
-  # DUPLICATE this block for tenant2, tenant3, etc.
-  # Change service names, container names, volumes, env vars, labels accordingly.
   #--------------------------------------------------
   tenant1-nextcloud-db:
     image: postgres:15-alpine
@@ -366,15 +314,11 @@ services:
     networks:
       - backend
     volumes:
-      - tenant1-nextcloud-db-data:/var/lib/postgresql/data # Tenant specific volume
+      - tenant1-nextcloud-db-data:/var/lib/postgresql/data
     environment:
-      POSTGRES_PASSWORD: ${TENANT1_NC_DB_PASSWORD} # Tenant specific password
-      POSTGRES_USER: ${TENANT1_NC_DB_USER} # Tenant specific user
-      POSTGRES_DB: ${TENANT1_NC_DB_NAME} # Tenant specific DB name
-
-  # Note: Using SHARED Redis for Nextcloud instances here for simplicity.
-  # Could deploy separate Redis instances per tenant if needed.
-  # tenant1-nextcloud-redis: ...
+      POSTGRES_PASSWORD: ${TENANT1_NC_DB_PASSWORD}
+      POSTGRES_USER: ${TENANT1_NC_DB_USER}
+      POSTGRES_DB: ${TENANT1_NC_DB_NAME}
 
   tenant1-nextcloud-app:
     image: nextcloud:28-fpm-alpine
@@ -384,47 +328,35 @@ services:
       - proxy
       - backend
     volumes:
-      # Tenant specific volumes
       - tenant1-nextcloud-data:/var/www/html
       - tenant1-nextcloud-custom_apps:/var/www/html/custom_apps
       - tenant1-nextcloud-config:/var/www/html/config
       - tenant1-nextcloud-themes:/var/www/html/themes
     environment:
-      # Tenant specific DB connection
       POSTGRES_HOST: tenant1-nextcloud-db
       POSTGRES_DB: ${TENANT1_NC_DB_NAME}
       POSTGRES_USER: ${TENANT1_NC_DB_USER}
       POSTGRES_PASSWORD: ${TENANT1_NC_DB_PASSWORD}
-      # Shared Redis connection (use different DB number, e.g., 1 for tenant1)
-      REDIS_HOST: erpnext-redis-cache # Using shared cache redis
-      REDIS_HOST_DB: "1" # Use Redis DB 1 for this tenant
-      # Optional: Pass Redis password if enabled
-      # REDIS_HOST_PASSWORD: ${REDIS_PASSWORD}
-      # Proxy settings
+      REDIS_HOST: erpnext-redis-cache
+      REDIS_HOST_DB: "1"
       NEXTCLOUD_TRUSTED_PROXIES: 'traefik'
       OVERWRITEPROTOCOL: 'https'
-      # Initial admin user for this tenant instance
       NEXTCLOUD_ADMIN_USER: ${TENANT1_NC_ADMIN_USER}
       NEXTCLOUD_ADMIN_PASSWORD: ${TENANT1_NC_ADMIN_PASSWORD}
-      # Resource limits
       PHP_MEMORY_LIMIT: 1G
       PHP_UPLOAD_LIMIT: 10G
       TZ: ${TZ}
-      # OnlyOffice integration (uses shared OnlyOffice instance)
-      ONLYOFFICE_JWT_SECRET: ${ONLYOFFICE_JWT_SECRET} # Shared secret
+      ONLYOFFICE_JWT_SECRET: ${ONLYOFFICE_JWT_SECRET}
     depends_on:
       - tenant1-nextcloud-db
-      - erpnext-redis-cache # Depends on shared Redis
+      - erpnext-redis-cache
     labels:
       - "traefik.enable=true"
-      # --- Router for Tenant 1 Nextcloud ---
       - "traefik.http.routers.nextcloud-tenant1.rule=Host(`${TENANT1_NEXTCLOUD_DOMAIN}`)"
       - "traefik.http.routers.nextcloud-tenant1.entrypoints=https"
       - "traefik.http.routers.nextcloud-tenant1.tls=true"
       - "traefik.http.routers.nextcloud-tenant1.tls.certresolver=letsencrypt"
-      # Service definition (points to FPM port)
       - "traefik.http.services.nextcloud-tenant1-svc.loadbalancer.server.port=9000"
-      # Apply middlewares (adjust redirect regex if needed)
       - "traefik.http.middlewares.nextcloud-tenant1-redirect.redirectregex.regex=https://(.*)/.well-known/(card|cal)dav"
       - "traefik.http.middlewares.nextcloud-tenant1-redirect.redirectregex.replacement=https://$$1/remote.php/dav/"
       - "traefik.http.middlewares.nextcloud-tenant1-redirect.redirectregex.permanent=true"
@@ -443,17 +375,10 @@ services:
     volumes:
       - onlyoffice-data:/var/www/onlyoffice/Data
       - onlyoffice-logs:/var/log/onlyoffice
-      # Optional: Shared Redis volume if using Redis cache
-      # - redis-data:/var/lib/onlyoffice/documentserver/App_Data/cache/output
     environment:
       JWT_ENABLED: "true"
-      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET} # Shared secret used by all tenants
-      # Optional: Redis config
-      # REDIS_SERVER_HOST: erpnext-redis-cache
-      # REDIS_SERVER_PASS: ${REDIS_PASSWORD}
+      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET}
       TZ: ${TZ}
-    # depends_on:
-    #   - erpnext-redis-cache # If using shared Redis
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.onlyoffice.rule=Host(`${ONLYOFFICE_DOMAIN}`)"
@@ -474,7 +399,7 @@ services:
       - proxy
       - backend
     ports:
-      - "127.0.0.1:5678:5678" # Bind to localhost only
+      - "127.0.0.1:5678:5678"
     volumes:
       - n8n-data:/home/node/.n8n
     environment:
@@ -487,12 +412,6 @@ services:
       N8N_BASIC_AUTH_ACTIVE: "true"
       N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER}
       N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD}
-      # Consider using a database for n8n persistence in production
-      # DB_TYPE: postgresdb
-      # DB_POSTGRESDB_HOST: some-postgres-db
-      # DB_POSTGRESDB_DATABASE: n8n
-      # DB_POSTGRESDB_USER: n8n_user
-      # DB_POSTGRESDB_PASSWORD: n8n_password
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.n8n.rule=Host(`${N8N_DOMAIN}`)"
@@ -503,237 +422,42 @@ services:
       - "traefik.http.routers.n8n.middlewares=secHeaders@docker"
 
   #--------------------------------------------------
-  # Mailu (Email Server)
-  # Adapted from official Mailu docker-compose
-  #--------------------------------------------------
-  mailu-front:
-    image: mailu/nginx:${MAILU_VERSION:-2.0} # Use specific Mailu version if needed
-    container_name: mailu-front
-    restart: unless-stopped
-    networks:
-      - proxy # Expose web interfaces via Traefik
-      - mailu-internal # Internal mailu network
-    volumes:
-      - mailu-data:/data
-      - mailu-letsencrypt:/certs # Mailu can manage its own certs for mail protocols
-    environment:
-      TZ: ${TZ}
-      DOMAIN: ${EMAIL_DOMAIN} # Primary email domain
-      HOSTNAMES: ${MAILU_HOSTNAME},${MAILU_DOMAIN} # Hostnames served
-      TLS_FLAVOR: cert # Use existing certs (Traefik handles web, Mailu handles mail TLS) or 'letsencrypt'
-      AUTH_RATELIMIT_BACKEND: redis://mailu-redis:6379/0 # Rate limiting backend
-      PROXY_AUTH_BACKEND: redis://mailu-redis:6379/0 # Proxy auth backend
-      WEB_ADMIN: ${MAILU_WEB_ADMIN} # Path for admin UI
-      WEB_WEBMAIL: ${MAILU_WEB_WEBMAIL} # Path for webmail
-      RECAPTCHA_PUBLIC_KEY: # Optional: Add Recaptcha keys
-      RECAPTCHA_PRIVATE_KEY: # Optional: Add Recaptcha keys
-      MESSAGE_SIZE_LIMIT: ${MESSAGE_SIZE_LIMIT}
-      # If using Redis password:
-      # AUTH_RATELIMIT_PASSWORD: ${REDIS_PASSWORD}
-      # PROXY_AUTH_PASSWORD: ${REDIS_PASSWORD}
-    depends_on:
-      - mailu-admin
-      - mailu-imap
-      - mailu-smtp
-      - mailu-webmail # Depends on webmail service if configured
-      - mailu-redis
-    labels:
-      - "traefik.enable=true"
-      # Router for Mailu Web UI (Admin + Webmail combined or separate)
-      - "traefik.http.routers.mailu.rule=Host(`${MAILU_DOMAIN}`)" # Route based on main mail domain
-      - "traefik.http.routers.mailu.entrypoints=https"
-      - "traefik.http.routers.mailu.tls=true"
-      - "traefik.http.routers.mailu.tls.certresolver=letsencrypt"
-      # Service definition: Point Traefik to port 80 of the front container
-      - "traefik.http.services.mailu.loadbalancer.server.port=80"
-      # Apply security headers
-      - "traefik.http.routers.mailu.middlewares=secHeaders@docker"
-
-  mailu-redis: # Mailu's Redis instance
-    image: redis:6.2-alpine
-    container_name: mailu-redis
-    restart: unless-stopped
-    networks:
-      - mailu-internal # Internal only
-    volumes:
-      - mailu-redis:/data
-    # Optional: Enable Redis password authentication
-    # command: redis-server --requirepass ${REDIS_PASSWORD}
-
-  mailu-admin:
-    image: mailu/admin:${MAILU_VERSION:-2.0}
-    container_name: mailu-admin
-    restart: unless-stopped
-    networks:
-      - mailu-internal
-    volumes:
-      - mailu-data:/data
-      - /etc/localtime:/etc/localtime:ro # Sync time
-    environment:
-      TZ: ${TZ}
-      DOMAIN: ${EMAIL_DOMAIN}
-      SECRET_KEY: ${MAILU_SECRET_KEY}
-      PASSWORD_SCHEME: ${MAILU_PASSWORD_SCHEME}
-      ADMIN_ADDRESSES: admin@${EMAIL_DOMAIN} # Initial admin user email
-      # Database config (uses SQLite by default in /data)
-      # External DB can be configured here (e.g., PostgreSQL)
-      # If using Redis password:
-      # REDIS_PASSWORD: ${REDIS_PASSWORD}
-    depends_on:
-      - mailu-redis
-
-  mailu-imap: # Dovecot IMAP/POP3 server
-    image: mailu/dovecot:${MAILU_VERSION:-2.0}
-    container_name: mailu-imap
-    restart: unless-stopped
-    networks:
-      - mailu-internal
-    volumes:
-      - mailu-data:/data
-      - /etc/localtime:/etc/localtime:ro
-    environment:
-      TZ: ${TZ}
-      DOMAIN: ${EMAIL_DOMAIN}
-      HOSTNAMES: ${MAILU_HOSTNAME} # Hostname for TLS cert
-      SECRET_KEY: ${MAILU_SECRET_KEY}
-      PASSWORD_SCHEME: ${MAILU_PASSWORD_SCHEME}
-      AUTH_SQL_BACKEND: sqlite # Or postgres etc. if configured
-      # If using Redis password:
-      # REDIS_PASSWORD: ${REDIS_PASSWORD}
-    depends_on:
-      - mailu-front # Needs front for certs potentially
-      - mailu-admin # Needs admin for auth config
-
-  mailu-smtp: # Postfix SMTP server
-    image: mailu/postfix:${MAILU_VERSION:-2.0}
-    container_name: mailu-smtp
-    restart: unless-stopped
-    networks:
-      - mailu-internal
-    volumes:
-      - mailu-data:/data
-      - /etc/localtime:/etc/localtime:ro
-    environment:
-      TZ: ${TZ}
-      DOMAIN: ${EMAIL_DOMAIN}
-      HOSTNAMES: ${MAILU_HOSTNAME}
-      SECRET_KEY: ${MAILU_SECRET_KEY}
-      PASSWORD_SCHEME: ${MAILU_PASSWORD_SCHEME}
-      AUTH_SQL_BACKEND: sqlite
-      RELAYHOST: # Optional: Configure an external SMTP relay
-      MESSAGE_SIZE_LIMIT: ${MESSAGE_SIZE_LIMIT}
-      # If using Redis password:
-      # REDIS_PASSWORD: ${REDIS_PASSWORD}
-    depends_on:
-      - mailu-front
-      - mailu-admin
-
-  mailu-antispam: # Rspamd antispam filter
-    image: mailu/rspamd:${MAILU_VERSION:-2.0}
-    container_name: mailu-antispam
-    restart: unless-stopped
-    networks:
-      - mailu-internal
-    volumes:
-      - mailu-data:/data
-      - /etc/localtime:/etc/localtime:ro
-    environment:
-      TZ: ${TZ}
-      REDIS_HOST: mailu-redis
-      # If using Redis password:
-      # REDIS_PASSWORD: ${REDIS_PASSWORD}
-    depends_on:
-      - mailu-redis
-
-  mailu-antivirus: # ClamAV antivirus scanner
-    image: mailu/clamav:${MAILU_VERSION:-2.0}
-    container_name: mailu-antivirus
-    restart: unless-stopped
-    networks:
-      - mailu-internal
-    volumes:
-      - mailu-data:/data
-      - /etc/localtime:/etc/localtime:ro
-    environment:
-      TZ: ${TZ}
-    depends_on: []
-
-  mailu-webmail: # Roundcube or SnappyMail webmail client
-    image: mailu/roundcube:${MAILU_VERSION:-2.0} # Or mailu/snappymail
-    container_name: mailu-webmail
-    restart: unless-stopped
-    networks:
-      - mailu-internal
-    volumes:
-      - mailu-data:/data
-      - /etc/localtime:/etc/localtime:ro
-    environment:
-      TZ: ${TZ}
-      ROUNDCUBEMAIL_DEFAULT_HOST: mailu-imap # Internal IMAP host
-      ROUNDCUBEMAIL_SMTP_SERVER: mailu-smtp # Internal SMTP host
-      # Other Roundcube config options...
-    depends_on:
-      - mailu-imap
-      - mailu-smtp
-
-  #--------------------------------------------------
   # Ollama (AI Model Server)
   #--------------------------------------------------
   ollama:
-    image: ollama/ollama:latest # Use official image
+    image: ollama/ollama:latest
     container_name: ollama
     restart: unless-stopped
     networks:
-      - backend # Internal access only needed by Open WebUI
+      - backend
     volumes:
-      - ollama-data:/root/.ollama # Persist downloaded models
-    # --- GPU Acceleration (Optional - Requires NVIDIA Container Toolkit on Host) ---
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1 # Or 'all'
-    #           capabilities: [gpu]
-    # --------------------------------------------------------------------------
-    # Expose port internally if needed, but not strictly necessary if only accessed by OpenWebUI
-    # ports:
-    #   - "127.0.0.1:11434:11434"
+      - ollama-data:/root/.ollama
     environment:
-      # Ensure Ollama listens on all interfaces within the container
       OLLAMA_HOST: '0.0.0.0'
-      # Optional: Set models to keep loaded in memory
-      # OLLAMA_KEEP_ALIVE: '1h'
       TZ: ${TZ}
 
   #--------------------------------------------------
   # Open WebUI (Frontend for Ollama)
   #--------------------------------------------------
   open-webui:
-    image: ghcr.io/open-webui/open-webui:main # Use official image
+    image: ghcr.io/open-webui/open-webui:main
     container_name: open-webui
     restart: unless-stopped
     networks:
-      - proxy # Exposed via Traefik
-      - backend # Needs to connect to Ollama
+      - proxy
+      - backend
     volumes:
-      - open-webui-data:/app/backend/data # Persist config and data
+      - open-webui-data:/app/backend/data
     environment:
-      # Point WebUI to the Ollama service within the Docker network
       OLLAMA_BASE_URL: 'http://ollama:11434'
-      # Optional: Enable/disable sign-up
-      # WEBUI_SIGNUP_ENABLED: 'false'
       TZ: ${TZ}
     depends_on:
-      - ollama # Ensure Ollama starts before the WebUI
+      - ollama
     labels:
       - "traefik.enable=true"
-      # HTTP Router definition
       - "traefik.http.routers.openwebui.rule=Host(`${OPENWEBUI_DOMAIN}`)"
       - "traefik.http.routers.openwebui.entrypoints=https"
       - "traefik.http.routers.openwebui.tls=true"
       - "traefik.http.routers.openwebui.tls.certresolver=letsencrypt"
-      # Service definition: Point Traefik to port 8080 of this container
       - "traefik.http.services.openwebui.loadbalancer.server.port=8080"
-      # Apply global security headers middleware
       - "traefik.http.routers.openwebui.middlewares=secHeaders@docker"

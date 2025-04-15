@@ -129,11 +129,7 @@ services:
     networks:
       - proxy
       - backend
-    volumes:
-      # Optional: Mount volumes for themes, providers if needed
-      # - ./keycloak/themes:/opt/keycloak/themes
-      # - ./keycloak/providers:/opt/keycloak/providers
-      pass
+    volumes: [] # Corrected to an empty list
     environment:
       # Initial admin credentials
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER}

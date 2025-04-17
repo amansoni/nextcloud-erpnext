@@ -64,19 +64,19 @@ services:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
       - --entrypoints.web.address=:80
-      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.to=https
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
-      - --entrypoints.websecure.address=:443
+      - --entrypoints.https.address=:443
       - --certificatesResolvers.letsencrypt.acme.httpChallenge=true
       - --certificatesResolvers.letsencrypt.acme.httpChallenge.entrypoint=web
       - --certificatesResolvers.letsencrypt.acme.email=${ACME_EMAIL}
-      - --certificatesResolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --certificatesResolvers.letsencrypt.acme.storage=/etc/traefik/acme.json
     labels:
       traefik.enable: "true"
       traefik.http.routers.dashboard.rule: Host(`${TRAEFIK_DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))
       traefik.http.routers.dashboard.tls: "true"
       traefik.http.routers.dashboard.tls.certresolver: letsencrypt
-      traefik.http.routers.dashboard.entrypoints: websecure
+      traefik.http.routers.dashboard.entrypoints: https
       traefik.http.routers.dashboard.service: api@internal
       traefik.http.routers.dashboard.middlewares: myauth
       traefik.http.middlewares.myauth.basicauth.users: "egrist:$$apr1$$MT4dDHgm$$ramWhIiP5KCeEH56W3JlA.,test:$$apr1$$H6uskkkW$$IgXLP6ewTrSuBkTrqE8wj/"

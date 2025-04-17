@@ -64,7 +64,6 @@ services:
       - --entrypoints.web.http.redirections.entrypoint.to=https
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
       - --entrypoints.web.http.redirections.entrypoint.permanent=true
-      - --entrypoints.web.http.redirections.entrypoint.exclude=/acme-challenge
       - --entrypoints.https.address=:443
       - --certificatesResolvers.letsencrypt.acme.httpChallenge=true
       - --certificatesResolvers.letsencrypt.acme.httpChallenge.entrypoint=web

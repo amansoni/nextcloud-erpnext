@@ -245,9 +245,9 @@ services:
   #--------------------------------------------------
   # Ollama (AI Model Server)
   #--------------------------------------------------
-  ollama:
+  ollama-server:
     image: ollama/ollama:latest
-    container_name: ollama
+    container_name: ollama-server
     restart: unless-stopped
     networks:
       - backend
@@ -273,7 +273,7 @@ services:
       OLLAMA_BASE_URL: 'http://ollama:11434'
       TZ: ${TZ}
     depends_on:
-      - ollama
+      - ollama-server
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.openwebui.rule=Host(`${OPENWEBUI_DOMAIN}`)"

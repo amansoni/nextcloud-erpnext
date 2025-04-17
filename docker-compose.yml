@@ -60,12 +60,11 @@ services:
       - TZ=${TZ}
       - ACME_EMAIL=${ACME_EMAIL}
     command:
-      - --api=true
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
       - --entrypoints.web.address=:80
       - --entrypoints.web.http.redirections.entrypoint.to=https
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.web.http.redirections.entrypoint.permanent=true
+      - --entrypoints.web.http.redirections.entrypoint.exclude=/acme-challenge
       - --entrypoints.https.address=:443
       - --certificatesResolvers.letsencrypt.acme.httpChallenge=true
       - --certificatesResolvers.letsencrypt.acme.httpChallenge.entrypoint=web
@@ -80,6 +79,13 @@ services:
       traefik.http.routers.dashboard.service: api@internal
       traefik.http.routers.dashboard.middlewares: myauth
       traefik.http.middlewares.myauth.basicauth.users: "egrist:$$apr1$$MT4dDHgm$$ramWhIiP5KCeEH56W3JlA.,test:$$apr1$$H6uskkkW$$IgXLP6ewTrSuBkTrqE8wj/"
+      traefik.http.middlewares.secHeaders.headers.browserXssFilter: true
+      traefik.http.middlewares.secHeaders.headers.contentTypeNosniff: true
+      traefik.http.middlewares.secHeaders.headers.frameDeny: true
+      traefik.http.middlewares.secHeaders.headers.stsSeconds: 31536000
+      traefik.http.middlewares.secHeaders.headers.stsIncludeSubdomains: true
+      traefik.http.middlewares.secHeaders.headers.stsPreload: true
+
 
   #--------------------------------------------------
   # Keycloak Database (PostgreSQL)

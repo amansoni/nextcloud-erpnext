@@ -52,7 +52,7 @@ services:
       - "8080:8080" # Traefik dashboard
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - traefik-acme:/etc/traefik/acme.json
+      - ./traefik/acme.json:/etc/traefik/acme.json # Mount the local acme.json file
       - traefik-logs:/var/log/traefik
     environment:
       - PUID=${PUID}

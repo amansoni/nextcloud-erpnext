@@ -52,7 +52,6 @@ services:
       - "8080:8080" # Traefik dashboard
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - traefik-acme:/etc/traefik/acme.json
       - traefik-logs:/var/log/traefik
     environment:
@@ -60,19 +59,27 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
       - ACME_EMAIL=${ACME_EMAIL}
+    command:
+      - --api=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --certificatesResolvers.letsencrypt.acme.httpChallenge=true
+      - --certificatesResolvers.letsencrypt.acme.httpChallenge.entrypoint=web
+      - --certificatesResolvers.letsencrypt.acme.email=${ACME_EMAIL}
+      - --certificatesResolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.traefik-dashboard.rule=Host(`${TRAEFIK_DOMAIN}`)"
-      - "traefik.http.routers.traefik-dashboard.service=api@internal"
-      - "traefik.http.routers.traefik-dashboard.entrypoints=https"
-      - "traefik.http.routers.traefik-dashboard.tls=true"
-      - "traefik.http.routers.traefik-dashboard.tls.certresolver=letsencrypt"
-      - "traefik.http.middlewares.secHeaders.headers.browserXssFilter=true"
-      - "traefik.http.middlewares.secHeaders.headers.contentTypeNosniff=true"
-      - "traefik.http.middlewares.secHeaders.headers.frameDeny=true"
-      - "traefik.http.middlewares.secHeaders.headers.stsSeconds=31536000"
-      - "traefik.http.middlewares.secHeaders.headers.stsIncludeSubdomains=true"
-      - "traefik.http.middlewares.secHeaders.headers.stsPreload=true"
+      traefik.enable: "true"
+      traefik.http.routers.dashboard.rule: Host(`${TRAEFIK_DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))
+      traefik.http.routers.dashboard.tls: "true"
+      traefik.http.routers.dashboard.tls.certresolver: letsencrypt
+      traefik.http.routers.dashboard.entrypoints: websecure
+      traefik.http.routers.dashboard.service: api@internal
+      traefik.http.routers.dashboard.middlewares: myauth
+      traefik.http.middlewares.myauth.basicauth.users: "egrist:$$apr1$$MT4dDHgm$$ramWhIiP5KCeEH56W3JlA.,test:$$apr1$$H6uskkkW$$IgXLP6ewTrSuBkTrqE8wj/"
 
   #--------------------------------------------------
   # Keycloak Database (PostgreSQL)
